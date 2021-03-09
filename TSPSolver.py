@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#/usr/bin/python3
 
 from which_pyqt import PYQT_VER
 if PYQT_VER == 'PYQT5':
@@ -82,7 +82,57 @@ class TSPSolver:
 	'''
 
 	def greedy( self,time_allowance=60.0 ):
-		pass
+		results = {}
+		original_cities = self._scenario.getCities()
+		ncities = len(original_cities)
+		foundTour = False
+		count = 0
+		bssf = None
+		start_time = time.time()
+
+		while not foundTour and time.time() - start_time < time_allowance and count < ncities:
+			cities = original_cities.copy()
+			startCity = cities[count]
+			route = []
+
+			route.append(startCity)
+			cities.remove(startCity)
+			currentCity = startCity
+
+			for i in range(ncities - 1):
+				currentCity = self.findClosestCity(currentCity, cities)
+				route.append(currentCity)
+				cities.remove(currentCity)
+
+			# route.append(startCity)
+
+			bssf = TSPSolution(route)
+			count += 1
+			if bssf.cost < np.inf:
+				# Found a valid route
+				foundTour = True
+
+		end_time = time.time()
+		results['cost'] = bssf.cost if foundTour else math.inf
+		results['time'] = end_time - start_time
+		results['count'] = count
+		results['soln'] = bssf
+		results['max'] = None
+		results['total'] = None
+		results['pruned'] = None
+
+		return results
+
+	def findClosestCity(self, currentCity, cities):
+		closestCity = None
+		min = math.inf
+		for c in cities:
+			cost = currentCity.costTo(c)
+			if (cost <= min):
+				min = cost
+				closestCity = c
+
+		return closestCity
 	
 	
 	
