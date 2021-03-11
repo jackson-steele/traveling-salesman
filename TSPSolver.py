@@ -133,7 +133,76 @@ class TSPSolver:
 				closestCity = c
 
 		return closestCity
-	
+
+
+	def nearest_insertion(self, time_allowance=60.0 ):
+		#start with a random city, add to "tour"
+		#IN LOOP: find nearest city outside tour to a city in the tour, add
+		#Complexity: n cities * n_in_tour * (n_cities - n_in_tour)
+
+		results = {}
+		original_cities = self._scenario.getCities()
+		ncities = len(original_cities)
+		foundTour = False
+		count = 0
+		bssf = None
+		start_time = time.time()
+
+		while not foundTour and time.time() - start_time < time_allowance and count < ncities:
+			cities = original_cities.copy()
+			startCity = cities[count]
+			route = []
+
+			route.append(startCity)
+			cities.remove(startCity)
+			currentCity = startCity
+
+			for i in range(ncities - 1):
+				city_added = self.addClosestCityToRoute(route, cities)
+				cities.remove(city_added)
+
+			bssf = TSPSolution(route)
+			count += 1
+			if bssf.cost < np.inf:
+				# Found a valid route
+				foundTour = True
+
+		end_time = time.time()
+		results['cost'] = bssf.cost if foundTour else math.inf
+		results['time'] = end_time - start_time
+		results['count'] = count
+		results['soln'] = bssf
+		results['max'] = None
+		results['total'] = None
+		results['pruned'] = None
+
+		return results
+
+	def addClosestCityToRoute(self, route, cities):
+		# for each city in route, fin
+		min_dist = math.inf
+		city_to_add = None
+		min_idx = 0
+
+		for i, c1 in enumerate(route):
+			closest = self.findClosestCity(c1, cities)
+			dist = c1.costTo(closest)
+			if dist < min_dist:
+				min_dist = dist
+				city_to_add = closest
+				min_idx = i
+
+		#add to route
+		#compare distance of city_to_add to the before and after cities
+		a_dist = city_to_add.costTo(route[min_idx - 1])
+		b_dist = city_to_add.costTo(route[(min_idx + 1) % len(route)])
+		if a_dist < b_dist:
+			route.insert(min_idx, city_to_add)
+		else:
+			route.insert(min_idx+1, city_to_add)
+
+		return city_to_add
+
 	
 	
 	''' <summary>
@@ -159,8 +228,8 @@ class TSPSolver:
 		algorithm</returns> 
 	'''
 		
-	def fancy( self,time_allowance=60.0 ):
-		pass
+	def fancy(self, time_allowance=60.0 ):
+		return self.nearest_insertion(time_allowance)
 		
 
 
