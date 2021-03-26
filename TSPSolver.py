@@ -136,7 +136,7 @@ class TSPSolver:
 		return closestCity
 
 
-	def nearest_insertion_2(self, time_allowance=60.0 ):
+	def nearest_insertion_all(self, time_allowance=60.0 ):
 		'''Tries all cities as a starting point and returns best route found'''
 		#start with a random city, add to "tour"
 		#IN LOOP: find nearest city outside tour to a city in the tour, add
@@ -187,7 +187,7 @@ class TSPSolver:
 		return results
 
 
-	def nearest_insertion_1(self, time_allowance=60.0 ):
+	def nearest_insertion(self, time_allowance=60.0 ):
 		'''Regular nearest insertion, returns when solution is found'''
 		#start with a random city, add to "tour"
 		#IN LOOP: find nearest city outside tour to a city in the tour, add
@@ -231,100 +231,6 @@ class TSPSolver:
 
 		return results
 
-
-	def nearest_insertion_3(self, time_allowance=60.0 ):
-		'''Choose one of 3 closest cities (randomly) to add to route, to try to minimize dead ends'''
-		#start with a random city, add to "tour"
-		#IN LOOP: find nearest city outside tour to a city in the tour, add
-		#Complexity: n cities * n_in_tour * (n_cities - n_in_tour)
-
-		results = {}
-		original_cities = self._scenario.getCities()
-		ncities = len(original_cities)
-		foundTour = False
-		count = 0
-		bssf = None
-		start_time = time.time()
-
-		while not foundTour and time.time() - start_time < time_allowance and count < ncities:
-			cities = original_cities.copy()
-			startCity = cities[count]
-			route = []
-
-			route.append(startCity)
-			cities.remove(startCity)
-			currentCity = startCity
-
-			for i in range(ncities - 1):
-				city_added = self.addOneOfClosestCitiesToRoute(route, cities)
-				cities.remove(city_added)
-
-			bssf = TSPSolution(route)
-			count += 1
-			if bssf.cost < np.inf:
-				# Found a valid route
-				foundTour = True
-
-		end_time = time.time()
-		results['cost'] = bssf.cost if foundTour else math.inf
-		results['time'] = end_time - start_time
-		results['count'] = count
-		results['soln'] = bssf
-		results['max'] = None
-		results['total'] = None
-		results['pruned'] = None
-
-		return results
-
-	def addOneOfClosestCitiesToRoute(self, route, cities):
-		# for each city in route, fin
-		# min_dist = math.inf
-		# min_idx = 0
-		min_distances = [math.inf, math.inf, math.inf]
-		indexes = [0,0,0]
-		city_to_add = None
-
-		for i, c1 in enumerate(route):
-			closest = self.findClosestCity(c1, cities)
-			dist = c1.costTo(closest)
-
-			if dist < min_distances[0]:
-				min_distances.insert(0,dist)
-				min_distances.pop()
-				indexes.insert(0, i)
-				indexes.pop()
-			elif dist < min_distances[1]:
-				min_distances.insert(1, dist)
-				min_distances.pop()
-				indexes.insert(1, i)
-				indexes.pop()
-			elif dist < min_distances[2]:
-				min_distances.insert(2, dist)
-				min_distances.pop()
-				indexes.insert(2, i)
-				indexes.pop()
-
-			# if dist < min_dist:
-			# 	min_dist = dist
-			# 	city_to_add = closest
-			# 	min_idx = i
-
-
-		rand = random.randint(0,2)
-		min_idx = indexes[rand]
-		city_to_add = self.findClosestCity(route[min_idx], cities)
-
-		#add to route
-		#compare distance of city_to_add to the before and after cities
-		a_dist = city_to_add.costTo(route[min_idx - 1])
-		b_dist = city_to_add.costTo(route[(min_idx + 1) % len(route)])
-		if a_dist < b_dist:
-			route.insert(min_idx, city_to_add)
-		else:
-			route.insert(min_idx+1, city_to_add)
-
-		return city_to_add
-
 	def addClosestCityToRoute(self, route, cities):
 		# for each city in route, fin
 		min_dist = math.inf
@@ -350,8 +256,80 @@ class TSPSolver:
 
 		return city_to_add
 
-	
-	
+	def cheapest_insertion(self, time_allowance=60.0 ):
+		'''Find the point that increases the length of your tour by the least amount.'''
+		results = {}
+		original_cities = self._scenario.getCities()
+		ncities = len(original_cities)
+		foundTour = False
+		count = 0
+		bssf = None
+		start_time = time.time()
+
+		while not foundTour and time.time() - start_time < time_allowance and count < ncities:
+			cities = original_cities.copy()
+			startCity = cities[count]
+			route = []
+
+			route.append(startCity)
+			cities.remove(startCity)
+			city_added = self.addClosestCityToRoute(route, cities)
+			cities.remove(city_added) #initial adding of second city
+
+			for i in range(ncities - 1):
+				city_added = self.addCheapestCityToRoute(route, cities)
+				cities.remove(city_added)
+
+			bssf = TSPSolution(route)
+			count += 1
+			if bssf.cost < np.inf:
+				# Found a valid route
+				foundTour = True
+
+		end_time = time.time()
+		results['cost'] = bssf.cost if foundTour else math.inf
+		results['time'] = end_time - start_time
+		results['count'] = count
+		results['soln'] = bssf
+		results['max'] = None
+		results['total'] = None
+		results['pruned'] = None
+
+		return results
+
+	def addCheapestCityToRoute(self, route, cities):
+		# for each city in route, fin
+		min_cost_increase = math.inf
+		city_to_add = None
+		min_idx = 0
+
+		for i in range(len(route)):
+			c1 = route[i]
+			c3 = route[(i+1) % len(route)]
+			c2, cost_increase = self.findCheapestInsertion(c1, c3, cities)
+			#dist = c1.costTo(closest)
+			if cost_increase <= min_cost_increase:
+				min_cost_increase = cost_increase
+				city_to_add = c2
+				min_idx = i
+
+		route.insert(min_idx, city_to_add)
+
+		return city_to_add
+
+	def findCheapestInsertion(self, c1, c3, cities):
+		city_to_add = None
+		min_cost_increase = math.inf
+		current_cost = c1.costTo(c3)
+
+		for c2 in cities:
+			cost_increase = c1.costTo(c2) + c2.costTo(c3) - current_cost
+			if (cost_increase <= min_cost_increase):
+				min_cost_increase = cost_increase
+				city_to_add = c2
+
+		return city_to_add, min_cost_increase
+
 	''' <summary>
 		This is the entry point for the branch-and-bound algorithm that you will implement
 		</summary>
@@ -362,7 +340,7 @@ class TSPSolver:
 	'''
 		
 	def branchAndBound( self, time_allowance=60.0 ):
-		return self.nearest_insertion_3(time_allowance)
+		return self.nearest_insertion(time_allowance)
 
 
 
@@ -376,7 +354,7 @@ class TSPSolver:
 	'''
 		
 	def fancy(self, time_allowance=60.0 ):
-		return self.nearest_insertion_1(time_allowance)
+		return self.cheapest_insertion(time_allowance)
 		
 
 
