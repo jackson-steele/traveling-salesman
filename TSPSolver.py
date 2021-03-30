@@ -276,7 +276,7 @@ class TSPSolver:
 			city_added = self.addClosestCityToRoute(route, cities)
 			cities.remove(city_added) #initial adding of second city
 
-			for i in range(ncities - 1):
+			for i in range(ncities - 2):
 				city_added = self.addCheapestCityToRoute(route, cities)
 				cities.remove(city_added)
 
