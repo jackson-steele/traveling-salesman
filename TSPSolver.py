@@ -256,7 +256,7 @@ class TSPSolver:
 
 		return city_to_add
 
-	def cheapest_insertion(self, time_allowance=60.0 ):
+	def cheapest_insertion(self, time_allowance=60.0 , swap=False):
 		'''Find the point that increases the length of your tour by the least amount.'''
 		results = {}
 		original_cities = self._scenario.getCities()
@@ -280,6 +280,9 @@ class TSPSolver:
 				city_added = self.addCheapestCityToRoute(route, cities)
 				cities.remove(city_added)
 
+			if swap:
+				route = self.swap_edges(route)
+
 			bssf = TSPSolution(route)
 			count += 1
 			if bssf.cost < np.inf:
@@ -296,6 +299,35 @@ class TSPSolver:
 		results['pruned'] = None
 
 		return results
+
+	def swap_edges(self, original_route):
+		num = len(original_route)
+		current_route = original_route.copy()
+		improving = True
+		while improving:
+			bssf = TSPSolution(current_route)
+			current_cost = bssf.cost
+			for i in range(1, num+1):
+				for j in range(i+1, num+1):
+					improved_route = self.opt_swap(current_route, (i % num), (j % num))
+					improved_cost = TSPSolution(improved_route).cost
+					if improved_cost < current_cost:
+						current_route = improved_route
+						current_cost = improved_cost
+						improving = True
+						break
+					else:
+						improving = False
+
+				if improving:
+					break
+
+		return current_route
+
+	def opt_swap(self, route, i, j):
+		reversed_bit = route[i:j+1]
+		reversed_bit.reverse()
+		return route[:i] + reversed_bit + route[j+1:]
 
 	def addCheapestCityToRoute(self, route, cities):
 		# for each city in route, fin
@@ -339,8 +371,8 @@ class TSPSolver:
 		max queue size, total number of states created, and number of pruned states.</returns> 
 	'''
 		
-	def branchAndBound( self, time_allowance=60.0 ):
-		return self.nearest_insertion(time_allowance)
+	def branchAndBound( self, time_allowance=60.0  ):
+		return self.cheapest_insertion(time_allowance, swap=False)
 
 
 
@@ -354,7 +386,7 @@ class TSPSolver:
 	'''
 		
 	def fancy(self, time_allowance=60.0 ):
-		return self.cheapest_insertion(time_allowance)
+		return self.cheapest_insertion(time_allowance, swap=True)
 		
 
 
