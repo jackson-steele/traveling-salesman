@@ -15,6 +15,7 @@ import random
 from TSPClasses import *
 import heapq
 import itertools
+import copy
 
 
 class TSPSolver:
@@ -361,8 +362,152 @@ class TSPSolver:
         max queue size, total number of states created, and number of pruned states.</returns> 
     '''
 
-    def branchAndBound(self, time_allowance=60.0):
-        pass
+   #finds the best solution using a branch and bound method
+    #If the optimal solution is not found within the time limit it simply returns the best solution so far
+    #Worst case time complexity O(n^3*n!)
+    #worst case space complexity of O(n^2*n!)
+    def branchAndBound( self, time_allowance=60.0 ):
+        results = {}
+        cities = self._scenario.getCities()
+        numCities = len(cities)
+        bssf = self.greedy(time_allowance)['soln']
+        bssf_cost = bssf.cost
+        route = []
+        reducedCostMatrix,lowestCost,startCity=self.findReducedCostMatrix(cities)
+        route.append(cities[startCity])
+        pathIndexes = [0]
+        state1 = State(reducedCostMatrix, lowestCost, 0, route ,startCity, False, pathIndexes)
+        statesQueue = []
+        statesQueue.append((state1.keyValue,state1))
+        heapq.heapify(statesQueue)
+        numSolutions = 0
+        numPruned = 0
+        numStates = 1
+        maxQueueSize = 1
+
+        start_time = time.time()
+
+        #worst case scenario is a O(n^3*n!) if not states are pruned, with pruning it is much less
+        #worst case space complexity of O(n^2*n!)
+        while statesQueue and time.time()-start_time < time_allowance:
+            key,currentState = heapq.heappop(statesQueue)
+            if currentState.cost >= bssf_cost:
+                numPruned = numPruned + 1
+            else:
+                originCity = currentState.lastCityVisited
+
+                #O(n^3) becuase find ChildState is o(n^2) however that function will not actually run n times thanks to the first if statement
+                #Space complexity O(n^2)
+                for destCity in range(numCities):
+                    if currentState.matrix[originCity][destCity] != math.inf and destCity not in currentState.currentPathIndexs:
+                        childState = self.findChildState(currentState,originCity,destCity,cities)
+                        numStates = numStates + 1
+                        if childState.isSolution:
+                            numSolutions = numSolutions + 1
+                            solution=TSPSolution(childState.currentPath)
+                            solution_cost = solution.cost
+                            if(solution_cost < bssf_cost):
+                                bssf_cost = solution_cost
+                                bssf = solution
+                            else:
+                                numPruned = numPruned + 1
+                        elif childState.cost <= bssf_cost :
+                            heapq.heappush(statesQueue, (childState.keyValue, childState))
+                            if len(statesQueue) > maxQueueSize:
+                                maxQueueSize = len(statesQueue)
+                        else:
+                            numPruned = numPruned + 1
+
+        end_time = time.time()
+        results['cost'] = bssf_cost
+        results['time'] = end_time - start_time
+        results['count'] = numSolutions
+        results['soln'] = bssf
+        results['max'] = maxQueueSize
+        results['total'] = numStates
+        results['pruned'] = numPruned
+
+        return results
+
+        #finds and returns the child state
+    #The find reduced matrix function which is called dominates the time and space complexity and results in a O(n^2)
+    def findChildState(self, parentState, orginCity, destCity, cities):
+        
+        matrix = copy.deepcopy(parentState.matrix)
+        numCities = len(matrix)
+        costToCity = matrix[orginCity][destCity]
+        
+        #Time complexity of O(n)
+        for i in range(numCities):
+            matrix[orginCity][i] = math.inf
+            matrix[i][destCity] = math.inf
+        matrix[destCity][orginCity] = math.inf
+
+        currentPath = copy.deepcopy(parentState.currentPath)
+        currentPath.append(cities[destCity])
+        pathIndexs = copy.deepcopy(parentState.currentPathIndexs)
+        pathIndexs.append(destCity)
+
+
+        reducedMatrix, costIncrease = self.reduceMatrix(matrix, pathIndexs)
+        cost = parentState.cost + costIncrease + costToCity
+        depth = parentState.depth + 1
+        
+        lastCityVisited = destCity
+        if len(currentPath) == numCities:
+            isSolution = True
+        else:
+            isSolution = False
+
+        childState = State(reducedMatrix, cost, depth, currentPath, lastCityVisited, isSolution, pathIndexs)
+
+        return childState
+
+    #find the initial reduced cost matrix for the parent state from the list of cities
+    #tima and space complexity of O(n^2)
+    def findReducedCostMatrix(self, cities):
+        numCities = len(cities)
+        startMatrix = [ [ 0 for j in range(numCities) ] for i in range(numCities) ]
+        startCityIndex = 0
+        
+        for i in range(numCities):
+                for j in range(numCities):
+                    startMatrix[i][j] = cities[i].costTo(cities[j])
+        
+        pathIndexs = []
+        reducedMatrix, costIncrease = self.reduceMatrix(startMatrix, pathIndexs)
+
+        return reducedMatrix, costIncrease, startCityIndex
+
+    #Reduces the given matrix
+    #Time complexity of O(n^2), space complexity of O(n^2)
+    def reduceMatrix(self, matrix, path):
+        matrix = np.array(matrix)
+        numCities = len(matrix)
+        cost = 0
+
+        for i in range(numCities):
+            if(i not in path[:-1]):
+                row = matrix[i,:]
+                minValue = np.min(row)
+                if(minValue != math.inf):
+                    cost = cost + minValue
+                    for j in range(numCities):
+                        matrix[i][j] = matrix[i][j] - minValue
+
+        for j in range(numCities):
+            if(j not in path[1:]):
+                col = matrix[:,j]
+                minValue = np.min(col)
+                if(minValue != math.inf):
+                    cost = cost + minValue
+                    for i in range(numCities):
+                        matrix[i][j] = matrix[i][j] - minValue
+
+        return matrix, cost
+
+        
+
 
     ''' <summary>
         This is the entry point for the algorithm you'll write for your group project.
@@ -375,3 +520,21 @@ class TSPSolver:
 
     def fancy(self, time_allowance=60.0):
         return self.cheapest_insertion(time_allowance, swap=True)
+
+
+#Class which holds each state's minimum matrix and other useful information
+# Each function has a O(1)
+# The matrix dominates the space complexity with a O(n^2), all other variables have O(n) or O(1)
+class State:
+    def __init__( self, matrix, cost, depth, currentPath, lastCityVisited, isSolution, currentPathIndexs):
+        self.matrix = matrix
+        self.depth = depth
+        self.cost = cost
+        self.currentPath = currentPath
+        self.lastCityVisited = lastCityVisited
+        self.isSolution = isSolution
+        self.keyValue = self.cost - self.depth*3*len(matrix)
+        self.currentPathIndexs = currentPathIndexs
+
+    def __lt__(self, other):
+        return ((self.keyValue) < (other.keyValue))
